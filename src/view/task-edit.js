@@ -1,3 +1,4 @@
+import he from "he";
 import SmartView from "./smart.js";
 import {COLORS} from "../const.js";
 import {isTaskRepeating, formatTaskDueDate} from "../utils/task.js";
@@ -108,7 +109,7 @@ const createTaskEditTemplate = (data) => {
               class="card__text"
               placeholder="Start typing your text here..."
               name="text"
-            >${description}</textarea>
+            >${he.encode(description)}</textarea>
           </label>
         </div>
 
@@ -145,6 +146,7 @@ export default class TaskEdit extends SmartView {
     this._datepicker = null;
 
     this._formSubmitHandler = this._formSubmitHandler.bind(this);
+    this._formDeleteClickHandler = this._formDeleteClickHandler.bind(this);
     this._descriptionInputHandler = this._descriptionInputHandler.bind(this);
     this._dueDateToggleHandler = this._dueDateToggleHandler.bind(this);
     this._dueDateChangeHandler = this._dueDateChangeHandler.bind(this);
@@ -153,6 +155,17 @@ export default class TaskEdit extends SmartView {
     this._colorChangeHandler = this._colorChangeHandler.bind(this);
     this._setInnerHandlers();
     this._setDatepicker();
+  }
+
+  // Перегружаем метод родителя removeElement,
+  // чтобы при удалении удалялся более ненужный календарь
+  removeElement() {
+    super.removeElement();
+
+    if (this._datepicker) {
+      this._datepicker.destroy();
+      this._datepicker = null;
+    }
   }
 
   reset(task) {
@@ -169,6 +182,7 @@ export default class TaskEdit extends SmartView {
     this._setInnerHandlers();
     this._setDatepicker();
     this.setFormSubmitHandler(this._callback.formSubmit);
+    this.setDeleteClickHandler(this._callback.deleteClick);
   }
 
   _setDatepicker() {
@@ -178,7 +192,6 @@ export default class TaskEdit extends SmartView {
       this._datepicker.destroy();
       this._datepicker = null;
     }
-
     if (this._data.isDueDate) {
       // flatpickr есть смысл инициализировать только в случае,
       // если поле выбора даты доступно для заполнения
@@ -192,7 +205,6 @@ export default class TaskEdit extends SmartView {
       );
     }
   }
-
   _setInnerHandlers() {
     this.getElement()
       .querySelector(`.card__date-deadline-toggle`)
@@ -203,18 +215,15 @@ export default class TaskEdit extends SmartView {
     this.getElement()
       .querySelector(`.card__text`)
       .addEventListener(`input`, this._descriptionInputHandler);
-
     if (this._data.isRepeating) {
       this.getElement()
         .querySelector(`.card__repeat-days-inner`)
         .addEventListener(`change`, this._repeatingChangeHandler);
     }
-
     this.getElement()
       .querySelector(`.card__colors-wrap`)
       .addEventListener(`change`, this._colorChangeHandler);
   }
-
   _dueDateToggleHandler(evt) {
     evt.preventDefault();
     this.updateData({
@@ -226,7 +235,6 @@ export default class TaskEdit extends SmartView {
       isRepeating: !this._data.isDueDate && false
     });
   }
-
   _repeatingToggleHandler(evt) {
     evt.preventDefault();
     this.updateData({
@@ -235,26 +243,22 @@ export default class TaskEdit extends SmartView {
       isDueDate: !this._data.isRepeating && false
     });
   }
-
   _descriptionInputHandler(evt) {
     evt.preventDefault();
     this.updateData({
       description: evt.target.value
     }, true);
   }
-
   _dueDateChangeHandler([userDate]) {
     // По заданию дедлайн у задачи устанавливается без учёта времеми,
     // но объект даты без времени завести нельзя,
     // поэтому будем считать срок у всех задач -
     // это 23:59:59 установленной даты
     userDate.setHours(23, 59, 59, 999);
-
     this.updateData({
       dueDate: userDate
     });
   }
-
   _repeatingChangeHandler(evt) {
     evt.preventDefault();
     this.updateData({
@@ -265,22 +269,29 @@ export default class TaskEdit extends SmartView {
       )
     });
   }
-
   _colorChangeHandler(evt) {
     evt.preventDefault();
     this.updateData({
       color: evt.target.value
     });
   }
-
   _formSubmitHandler(evt) {
     evt.preventDefault();
     this._callback.formSubmit(TaskEdit.parseDataToTask(this._data));
   }
-
   setFormSubmitHandler(callback) {
     this._callback.formSubmit = callback;
     this.getElement().querySelector(`form`).addEventListener(`submit`, this._formSubmitHandler);
+  }
+
+  _formDeleteClickHandler(evt) {
+    evt.preventDefault();
+    this._callback.deleteClick(TaskEdit.parseDataToTask(this._data));
+  }
+
+  setDeleteClickHandler(callback) {
+    this._callback.deleteClick = callback;
+    this.getElement().querySelector(`.card__delete`).addEventListener(`click`, this._formDeleteClickHandler);
   }
 
   static parseTaskToData(task) {
@@ -293,14 +304,11 @@ export default class TaskEdit extends SmartView {
         }
     );
   }
-
   static parseDataToTask(data) {
     data = Object.assign({}, data);
-
     if (!data.isDueDate) {
       data.dueDate = null;
     }
-
     if (!data.isRepeating) {
       data.repeating = {
         mo: false,
@@ -312,10 +320,8 @@ export default class TaskEdit extends SmartView {
         su: false
       };
     }
-
     delete data.isDueDate;
     delete data.isRepeating;
-
     return data;
   }
 }
